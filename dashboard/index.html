@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Radar de Preços & Buy-Timing Analytics — Apple Watch SE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <div class="brand">
+        <div class="brand-icon">⌚</div>
+        <div>
+          <h1>Buy-Timing Price Intelligence</h1>
+          <p class="subtitle">Monitoramento Estatístico de Preços • Família Apple Watch SE • MySQL + Python + Google Sheets</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <span id="dataModeBadge" class="mode-badge">Conectando...</span>
+        <a id="sheetLinkBtn" href="#" target="_blank" rel="noopener" class="btn btn-outline">
+          📊 Planilha Google Sheets
+        </a>
+        <button id="collectNowBtn" class="btn btn-primary" title="Executa coleta nas lojas e recalcula scores">
+          🔄 Atualizar Preços
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    <!-- Seletor de Variante (SKU) -->
+    <section class="sku-bar-section">
+      <div class="section-label">Selecione o SKU para análise detalhada:</div>
+      <div id="skuTabs" class="sku-tabs"></div>
+    </section>
+
+    <!-- Banner Principal de Decisão (Score 0-100 + Recomendação Estatística) -->
+    <section id="decisionHero" class="decision-hero">
+      <div class="score-ring-wrap">
+        <div id="scoreRing" class="score-ring">
+          <div class="score-ring-inner">
+            <span id="heroScoreVal" class="score-number">--</span>
+            <span class="score-caption">SCORE / 100</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-details">
+        <div class="hero-badges">
+          <span id="heroFavBadge" class="fav-pill" hidden>⭐ SEU MODELO FAVORITO</span>
+          <span id="heroClassBadge" class="status-pill">CARREGANDO</span>
+        </div>
+        <h2 id="heroProductTitle">Carregando dados do monitoramento...</h2>
+        <p id="heroRecText" class="hero-rec-text"></p>
+        <ul id="heroReasonsList" class="reasons-list"></ul>
+      </div>
+
+      <div class="hero-cta-box">
+        <div class="best-price-label">Menor Preço PIX Vigente</div>
+        <div id="heroBestPrice" class="best-price-value">R$ --</div>
+        <div id="heroBestStore" class="best-store-name">--</div>
+        <div id="heroInstallmentInfo" class="installment-sub">--</div>
+        <a id="heroOfferLink" href="#" target="_blank" rel="noopener" class="btn btn-buy">
+          Ir para Oferta ↗
+        </a>
+      </div>
+    </section>
+
+    <!-- 4 KPIs Analíticos -->
+    <section class="kpi-grid">
+      <article class="kpi-card">
+        <span class="kpi-title">Mediana Histórica (PIX)</span>
+        <strong id="kpiMediana" class="kpi-value">--</strong>
+        <span id="kpiIqRange" class="kpi-foot">Faixa P25–P75: --</span>
+      </article>
+      <article class="kpi-card">
+        <span class="kpi-title">Mínimo Histórico Registrado</span>
+        <strong id="kpiMinimo" class="kpi-value">--</strong>
+        <span id="kpiMaxInfo" class="kpi-foot">Pico registrado: --</span>
+      </article>
+      <article class="kpi-card">
+        <span class="kpi-title">Posição Estatística Atual</span>
+        <strong id="kpiPercentil" class="kpi-value">--</strong>
+        <span id="kpiZScore" class="kpi-foot">Z-Score Robusto (MAD): --</span>
+      </article>
+      <article class="kpi-card">
+        <span class="kpi-title">Meta / Preço-Alvo Definido</span>
+        <strong id="kpiTarget" class="kpi-value">--</strong>
+        <span id="kpiTargetDiff" class="kpi-foot">Distância atual: --</span>
+      </article>
+    </section>
+
+    <!-- Gráficos Principais -->
+    <section class="charts-grid">
+      <div class="panel panel-wide">
+        <div class="panel-header">
+          <div>
+            <h3>Evolução Histórica de Preço PIX vs. Mediana & Preço-Alvo</h3>
+            <p>Curva diária do menor preço disponível comparada à mediana histórica e gatilho de compra</p>
+          </div>
+        </div>
+        <div class="chart-container-lg">
+          <canvas id="historyChart"></canvas>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Comparativo Atual entre Varejistas (PIX vs. Parcelado)</h3>
+            <p>Spread real do pagamento à vista sobre o parcelamento em 10x–12x</p>
+          </div>
+        </div>
+        <div class="chart-container-md">
+          <canvas id="storesChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Auditoria Anti-"Metade do Dobro" & Benchmark Multi-SKU -->
+    <section class="tables-grid">
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>🕵️ Auditoria SQL Anti-"Metade do Dobro" (Janela 10d vs. 30d)</h3>
+            <p>Compara o desconto anunciado sobre o pico recente contra a média real de 30 dias da loja</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Varejista</th>
+                <th>Média 30d</th>
+                <th>Pico 10d</th>
+                <th>PIX Atual</th>
+                <th>Desc. Aparente</th>
+                <th>Desc. Real</th>
+                <th>Diagnóstico</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>📐 Benchmark da Linha Apple Watch SE (Todos os SKUs)</h3>
+            <p>Comparativo cruzado de geração (SE 2 vs. SE 3) e caixa (40mm vs. 44mm)</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>SKU / Variante</th>
+                <th>Melhor Loja</th>
+                <th>PIX Atual</th>
+                <th>Mediana</th>
+                <th>Percentil</th>
+                <th>Score</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="benchmarkTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Histórico de Alertas Disparados -->
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h3>🔔 Registro de Disparos de Oferta Boa (Motor de Alertas Telegram)</h3>
+          <p id="telegramStatusSub">Histórico auditado na tabela fato_alertas com trava anti-spam de 12h</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Data / Hora</th>
+              <th>SKU</th>
+              <th>Loja</th>
+              <th>Preço PIX</th>
+              <th>Mediana Ref.</th>
+              <th>Score</th>
+              <th>Gatilho Estatístico</th>
+              <th>Oferta</th>
+            </tr>
+          </thead>
+          <tbody id="alertsTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer container">
+    <p>
+      Projeto de Portfólio em Análise de Dados • Modelagem Star Schema em <strong>MySQL/MariaDB</strong>,
+      ETL & Estatística Robusta (MAD / Percentis) em <strong>Python 3.10</strong>, integração <strong>Google Sheets</strong> e Alertas via <strong>Telegram Bot</strong>.
+    </p>
+  </footer>
+
+  <script src="config.local.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
